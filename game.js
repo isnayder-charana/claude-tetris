@@ -40,6 +40,33 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
+const themeToggle = document.getElementById('theme-toggle');
+const THEME_KEY = 'tetris-theme';
+let gridColor = '#22222e';
+
+function savedTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+// El tema no forma parte del estado de la partida: init() no lo reinicia.
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  document.documentElement.dataset.theme = isLight ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark'); } catch {}
+  themeToggle.setAttribute('aria-pressed', String(isLight));
+  themeToggle.textContent = isLight ? '🌙 Oscuro' : '☀️ Claro';
+  gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+  // Redibuja aunque el bucle esté detenido (pausa / game over)
+  if (board && current && next) {
+    draw();
+    drawNext();
+  }
+}
+
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
 function createBoard() {
@@ -163,13 +190,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = 'rgba(255,255,255,0.3)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -301,4 +328,11 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+themeToggle.addEventListener('click', () => {
+  const isLight = document.documentElement.dataset.theme === 'light';
+  applyTheme(isLight ? 'dark' : 'light');
+  themeToggle.blur(); // evita que Space/Enter vuelvan a activar el botón
+});
+
 init();
+applyTheme(savedTheme());
