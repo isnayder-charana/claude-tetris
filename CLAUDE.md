@@ -23,7 +23,7 @@ Three files: `index.html` (DOM + two canvases + overlay), `style.css` (dark them
 
 Key points in `game.js` that span multiple functions:
 
-- **One integer encodes piece type and color.** Board cells and piece-shape cells hold `0` (empty) or `1–7`; that same number indexes both `PIECES` and `COLORS` (index 0 is `null` in both). `merge()` copies shape values straight into the board, so rendering needs no extra lookup.
+- **One integer encodes piece type and color.** Board cells and piece-shape cells hold `0` (empty) or `1–8` (8 is the "Tuerca" challenge piece, a 3×3 ring with an empty center); that same number indexes both `PIECES` and `COLORS` (index 0 is `null` in both). `merge()` copies shape values straight into the board, so rendering needs no extra lookup.
 - **Global mutable state.** `board`, `current`, `next`, `score`, `lines`, `level`, `paused`, `gameOver`, `dropInterval`, `animId`, etc. are module-level `let`s, reset entirely in `init()` (also the restart button handler).
 - **Piece lifecycle:** `lockPiece()` → `merge()` → `clearLines()` (updates lines/score/level/`dropInterval`) → `spawn()` (promotes `next` to `current`; if it collides immediately, `endGame()`).
 - **Game loop:** `loop()` runs on `requestAnimationFrame`, accumulating `dt` into `dropAccum` and stepping the piece down when it exceeds `dropInterval`. Pause and game over stop it via `cancelAnimationFrame(animId)`; resuming resets `lastTime` and calls `loop` again.
