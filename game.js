@@ -29,6 +29,9 @@ const PIECES = [
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const LINE_LABELS = ['', '', '¡DOBLE!', '¡TRIPLE!', '¡TETRIS!'];
+const FLASH_MS = 350;
+const TEXT_MS = 900;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -45,6 +48,9 @@ const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const THEME_KEY = 'tetris-theme';
 let gridColor = '#22222e';
+let flashColor = '#ffffff';
+let accentColor = '#7aa2f7';
+let canvasBgColor = '#1a1a25';
 
 function savedTheme() {
   try {
@@ -61,7 +67,11 @@ function applyTheme(theme) {
   try { localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark'); } catch {}
   themeToggle.setAttribute('aria-pressed', String(isLight));
   themeToggle.textContent = isLight ? '🌙 Oscuro' : '☀️ Claro';
-  gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+  const css = getComputedStyle(document.documentElement);
+  gridColor = css.getPropertyValue('--grid').trim();
+  flashColor = css.getPropertyValue('--flash').trim();
+  accentColor = css.getPropertyValue('--accent').trim();
+  canvasBgColor = css.getPropertyValue('--canvas-bg').trim();
   // Redibuja aunque el bucle esté detenido (pausa / game over)
   if (board && current && next) {
     draw();
@@ -70,6 +80,44 @@ function applyTheme(theme) {
 }
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+// combo: piezas seguidas que completan línea; effects: animaciones de líneas en curso
+let combo, effects;
+
+// ---- Sonido (Web Audio, sin archivos) ----
+let audioCtx = null;
+
+// Los navegadores solo permiten arrancar el audio tras un gesto del usuario
+function unlockAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function tone(freq, start, dur, type, gain) {
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, start);
+  g.gain.setValueAtTime(gain, start);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(start);
+  osc.stop(start + dur);
+}
+
+// Arpegio de una nota por línea; cada eslabón del combo sube el tono 2 semitonos
+function playClearSound(cleared, chain) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const t = audioCtx.currentTime;
+  const base = 440 * Math.pow(2, Math.min(chain - 1, 8) * 2 / 12);
+  const steps = [0, 4, 7, 12];
+  for (let i = 0; i < cleared; i++)
+    tone(base * Math.pow(2, steps[i] / 12), t + i * 0.06, 0.18, 'square', 0.06);
+  if (cleared === 4) tone(base * 2, t + 0.24, 0.45, 'triangle', 0.1);
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -124,8 +172,10 @@ function merge() {
 
 function clearLines() {
   let cleared = 0;
+  const rows = [];
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board[r].every(v => v !== 0)) {
+      rows.push(r - cleared); // posición original, antes de desplazar el tablero
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
       cleared++;
@@ -138,7 +188,57 @@ function clearLines() {
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
+    combo++;
+    addLineEffect(rows, cleared);
+    playClearSound(cleared, combo);
+  } else {
+    combo = 0;
   }
+}
+
+function addLineEffect(rows, cleared) {
+  const texts = [];
+  if (LINE_LABELS[cleared]) texts.push(LINE_LABELS[cleared]);
+  if (combo >= 2) texts.push(`COMBO x${combo}`);
+  const centerY = (Math.min(...rows) + Math.max(...rows) + 1) / 2 * BLOCK;
+  effects.push({ rows, texts, centerY, start: performance.now() });
+}
+
+function drawEffects() {
+  const now = performance.now();
+  effects = effects.filter(e => now - e.start < TEXT_MS);
+  for (const e of effects) {
+    const t = now - e.start;
+
+    // destello de las filas eliminadas
+    if (t < FLASH_MS) {
+      const k = t / FLASH_MS;
+      ctx.globalAlpha = 1 - k;
+      ctx.fillStyle = flashColor;
+      const grow = k * BLOCK * 0.4;
+      for (const r of e.rows)
+        ctx.fillRect(0, r * BLOCK - grow / 2, COLS * BLOCK, BLOCK + grow);
+    }
+
+    // texto flotante
+    if (e.texts.length) {
+      const k = t / TEXT_MS;
+      ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+      ctx.font = `800 ${24 + 4 * e.rows.length}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = canvasBgColor;
+      ctx.fillStyle = accentColor;
+      const y = e.centerY - k * 40;
+      e.texts.forEach((txt, i) => {
+        const ty = y + (i - (e.texts.length - 1) / 2) * 32;
+        ctx.strokeText(txt, COLS * BLOCK / 2, ty);
+        ctx.fillText(txt, COLS * BLOCK / 2, ty);
+      });
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function ghostY() {
@@ -234,6 +334,8 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  drawEffects();
 }
 
 function drawNext() {
@@ -294,6 +396,8 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  combo = 0;
+  effects = [];
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
@@ -306,6 +410,7 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  unlockAudio();
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
