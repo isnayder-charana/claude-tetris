@@ -30,7 +30,9 @@ Key points in `game.js` that span multiple functions:
 - **Rotation:** `rotateCW()` is a pure matrix rotation; `tryRotate()` applies simple horizontal wall kicks `[0, -1, 1, -2, 2]` (not SRS).
 - **Collision:** `collide(shape, ox, oy)` allows `ny < 0` (cells above the board) but rejects side/bottom bounds and occupied cells. It is reused for movement, drops, ghost piece (`ghostY()`), and spawn checks.
 - **Rendering:** `drawBlock()` is shared between the main board and the next-piece preview (it takes the context and cell size). The ghost piece is drawn with alpha `0.2`.
-- **HUD/overlay:** `updateHUD()` writes to the `#score/#lines/#level` spans; the `#overlay` element is reused for both PAUSA and GAME OVER by toggling the `hidden` class and changing its text.
+- **HUD/overlay:** `updateHUD()` writes to the `#score/#lines/#level` spans; the `#overlay` element is used only for GAME OVER (toggling the `hidden` class).
+- **Pause menu:** `P` or `Escape` call `togglePause()`, which shows/hides the separate `#pause-menu` overlay (Reanudar, Reiniciar → `init()`, Ver controles, Nivel inicial `<select id="start-level">`). While `paused`, the keydown handler returns before game keys (Tab is trapped inside the menu by `trapMenuFocus()`); P/Esc with Ctrl/Meta/Alt, and Esc on the select, are not intercepted. `hidePauseMenu()` (also called by `init()`) blurs any focused menu element. Resume and `init()` set `ignoreRepeat`, so held keys (`e.repeat`) are ignored until a fresh keydown; resuming also resets `dropAccum`.
+- **Start level:** `startLevel` is the preference for the next game, persisted in `localStorage` key `tetris-start-level` (every access in try/catch). `init()` snapshots it into `gameStartLevel`; `clearLines()` computes `level = gameStartLevel + floor(lines / 10)`, and both use `intervalForLevel(level)` (`max(100, 1000 - (level - 1) * 90)`) for `dropInterval`. Changing the select mid-game does not affect the current game.
 
 ## Coupled constants
 
