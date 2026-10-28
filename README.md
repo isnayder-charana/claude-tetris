@@ -44,6 +44,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Tema claro/oscuro**: botón junto al título para alternar; por defecto es oscuro y la elección se guarda en `localStorage`.
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
+- **Tabla de records local**: top 5 puntuaciones con nombre (se pide al terminar si entras en el top), mejor combo y líneas máximas; se muestra en la pantalla de inicio y en el Game Over, se guarda en `localStorage` y se puede borrar.
 
 ---
 
